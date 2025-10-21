@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "simplefabricscoreboard",
+  "version": "${version}",
+  "name": "SimpleFabricScoreboard",
+  "description": "Scoreboard Api for fabric mods",
+  "authors": [],
+  "contact": {},
+  "license": "All-Rights-Reserved",
+  "icon": "assets/simplefabricscoreboard/icon.png",
+  "environment": "server",
+  "entrypoints": {
+    "main": [
+      "de.hotkeyyy.simplefabricscoreboard.Simplefabricscoreboard"
+    ]
+  },
+  "mixins": [
+    "simplefabricscoreboard.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric-language-kotlin": ">=${kotlin_loader_version}",
+    "fabric": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}
