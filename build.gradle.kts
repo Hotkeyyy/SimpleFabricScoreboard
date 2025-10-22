@@ -106,8 +106,9 @@ configure<PublishingExtension> {
 
         register<MavenPublication>("maven") {
             from(components["java"])
+            artifactId = "${project.property("archives_base_name")}"
             pom {
-                name.set(project.name)
+                name.set(project.name.lowercase())
                 description.set(project.description ?: project.name)
                 url.set("https://github.com/hotkeyyy/simplefabricscoreboard")
                 licenses {
@@ -141,6 +142,7 @@ configure<PublishingExtension> {
 // JReleaser Konfiguration
 jreleaser {
     project {
+        name = "simplefabricscoreboard"
         description = "A lightweight Kotlin module for Minecraft Fabric providing a simple and flexible API for managing scoreboards."
         authors = listOf("Hotkeyyy")
         license = "Apache-2.0"

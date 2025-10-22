@@ -34,8 +34,8 @@ object ScoreboardManager {
     fun createScoreboard(
         name: String,
         displayName: Text,
-        vararg lines: Text,
-        server: net.minecraft.server.MinecraftServer
+        server: net.minecraft.server.MinecraftServer,
+        vararg lines: Text
     ): Simplescoreboard {
         val board = Simplescoreboard(name, displayName, server)
         board.setLines(*lines)
