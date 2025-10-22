@@ -1,14 +1,19 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import org.jreleaser.model.Active
 
 plugins {
     kotlin("jvm") version "2.2.20"
     id("fabric-loom") version "1.11-SNAPSHOT"
     id("maven-publish")
+    id("signing")
+    id("org.jreleaser") version "1.20.0" // Aktuelle Version prüfen
 }
 
 version = project.property("mod_version") as String
 group = project.property("maven_group") as String
+
+
 
 base {
     archivesName.set(project.property("archives_base_name") as String)
@@ -21,7 +26,9 @@ java {
     // if it is present.
     // If you remove this line, sources will not be generated.
     withSourcesJar()
+    withJavadocJar()
 }
+
 
 loom {
     splitEnvironmentSourceSets()
@@ -29,7 +36,6 @@ loom {
     mods {
         register("simplefabricscoreboard") {
             sourceSet("main")
-            sourceSet("client")
         }
     }
 }
@@ -93,39 +99,33 @@ tasks.jar {
     }
 }
 
-// configure the maven publication
-publishing {
+signing {
+}
+configure<PublishingExtension> {
     publications {
-        create<MavenPublication>("mavenJava") {
+
+        register<MavenPublication>("maven") {
             from(components["java"])
-
-            groupId = group.toString()
-            artifactId = "simplefabricscoreboard"   // <-- dein Artefaktname
-            version = version.toString()
-
             pom {
-                name.set("Simple Fabric Scoreboard")
-                description.set("Eine Beispiel-Bibliothek mit Gradle Kotlin DSL und Maven Publish")
+                name.set(project.name)
+                description.set(project.description ?: project.name)
                 url.set("https://github.com/hotkeyyy/simplefabricscoreboard")
-
                 licenses {
                     license {
-                        name.set("MIT License")
-                        url.set("https://opensource.org/licenses/MIT")
+                        name.set("MIT")
+                        url.set("https://github.com/hotkeyyy/simplefabricscoreboard/blob/main/LICENSE")
                     }
                 }
-
                 developers {
                     developer {
-                        id.set("hotkeyyy")
+                        id.set("Hotkeyyy")
                         name.set("Hotkeyyy")
                         email.set("hotkeyyyde@gmail.com")
                     }
                 }
-
                 scm {
                     connection.set("scm:git:git://github.com/hotkeyyy/simplefabricscoreboard.git")
-                    developerConnection.set("scm:git:ssh://github.com/hotkeyyy/simplefabricscoreboard.git")
+                    developerConnection.set("scm:git:ssh://github.com:hotkeyyy/simplefabricscoreboard.git")
                     url.set("https://github.com/hotkeyyy/simplefabricscoreboard")
                 }
             }
@@ -133,20 +133,39 @@ publishing {
     }
 
     repositories {
-        // 🧪 Lokales Repository (z. B. zum Testen)
-        mavenLocal()
-
-        // 📦 GitHub Packages (optional)
-//        maven {
-//            name = "GitHubPackages"
-//            url = uri("https://maven.pkg.github.com/deinname/meine-bibliothek")
-//
-//            credentials {
-//                username = findProperty("gpr.user") as String? ?: System.getenv("GITHUB_ACTOR")
-//                password = findProperty("gpr.key") as String? ?: System.getenv("GITHUB_TOKEN")
-//            }
-//        }
+        maven {
+            url = layout.buildDirectory.dir("staging-deploy").get().asFile.toURI()
+        }
     }
 }
+// JReleaser Konfiguration
+jreleaser {
+    project {
+        description = "A lightweight Kotlin module for Minecraft Fabric providing a simple and flexible API for managing scoreboards."
+        authors = listOf("Hotkeyyy")
+        license = "Apache-2.0"
+        links{
+            homepage = "https://github.com/hotkeyyy/simplefabricscoreboard"
+        }
+        inceptionYear = "2025"
+        vendor = "Hotkeyyy"
+    }
+    signing {
+        active = Active.ALWAYS
+        setMode("FILE")
+        armored = true
+    }
 
+    deploy {
+        maven{
+            mavenCentral {
+                register("sonatype"){
+                    active = Active.ALWAYS
+                    url = "https://central.sonatype.com/api/v1/publisher"
+                    stagingRepository(layout.buildDirectory.dir("staging-deploy").get().asFile.path)
 
+                }
+            }
+        }
+    }
+}
