@@ -3,7 +3,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import org.jreleaser.model.Active
 
 plugins {
-    kotlin("jvm") version "2.3.20"
+    id("org.jetbrains.kotlin.jvm") version "2.3.20"
     id("net.fabricmc.fabric-loom")
     id("maven-publish")
     id("signing")
