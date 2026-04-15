@@ -14,7 +14,7 @@ Add the dependency to your `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("de.hotkeyyy:simplefabricscoreboard:1.0.5")
+    implementation("de.hotkeyyy:simplefabricscoreboard:1.1.1")
 }
 ```
 
