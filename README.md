@@ -1,61 +1,77 @@
 # SimpleFabricScoreboard
-A lightweight Kotlin module for Minecraft Fabric providing a simple and flexible API for managing scoreboard sideboards.
 
-## Features
-- Easy creation and management of scoreboard sideboards.
-- Support for dynamic content updates.
-- Packet based.
-- Integration with Minecraft's native scoreboard system.
-- Lightweight and efficient.
-- Designed for Fabric modding environment.
-- Kotlin-based for modern development practices.
-- Good documentation and examples.
-- Active maintenance and updates.
-- Compatible with the latest Minecraft versions.
-- Modular design for easy integration into existing projects.
-- Support for multiple sideboards simultaneously.
-- User-friendly API for developers of all skill levels.
+SimpleFabricScoreboard is a lightweight Kotlin library for Minecraft Fabric that manages sidebar scoreboards through direct packet updates.
+
+It provides a small Kotlin-first API for:
+- creating sidebar scoreboards
+- updating lines dynamically
+- assigning one scoreboard per player
+- clearing scoreboards cleanly when needed
 
 ## Installation
-To use SimpleFabricScoreboard in your Fabric mod, add the following dependency to your `build.gradle.kts` file:
+
+Add the dependency to your `build.gradle.kts`:
+
 ```kotlin
-//build.gradle.kts
 dependencies {
-    modImplementation("de.hotkeyyy:simplefabricscoreboard:1.0.3")
+    implementation("de.hotkeyyy:simplefabricscoreboard:1.0.5")
 }
 ```
 
-## Usage (Kotlin Example)
+## Core API
 
-register a sideboard and set its content:
+The main entrypoints are:
+- `scoreboard(...)` to create a scoreboard
+- `ScoreboardManager.setPlayerScoreboard(...)` to assign it to a player
+- `board.update { ... }` to modify lines later
+- `ScoreboardManager.removePlayerScoreboard(...)` to remove it from a player
+- `ScoreboardManager.clearAllBoards()` to remove all registered scoreboards
+
+## Usage
+
+Create a scoreboard and assign it to a player:
+
 ```kotlin
-val board = ScoreboardManager.createScoreboard(
-                "Test Board", 
-                server,
-                Text.of("Line 1"),
-                Text.of("Line 2"),
-                Text.of("Line 3"),
-                Text.of("Line 4"),
-                )
-            
+val board = scoreboard("test_board", Component.literal("Test Board"), server) {
+    +Component.literal("Line 1")
+    +Component.literal("Line 2")
+    +Component.literal("Line 3")
+}
+
 ScoreboardManager.setPlayerScoreboard(player, board)
 ```
 
-update content dynamically:
+You can also use `line(...)` explicitly:
+
 ```kotlin
-board.updateLine(3, Text.of("Updated Line 3"))
+val board = scoreboard("stats", Component.literal("Stats"), server) {
+    line(Component.literal("Coins: 120"))
+    line(Component.literal("Kills: 8"))
+    line(5, Component.literal("Rank: Gold"))
+}
 ```
-remove the sideboard from a player:
+
+Update an existing scoreboard:
+
+```kotlin
+board.update {
+    line(2, Component.literal("Kills: 9"))
+    +Component.literal("Session: Active")
+}
+```
+
+Remove scoreboards:
+
 ```kotlin
 ScoreboardManager.removePlayerScoreboard(player)
-```
-remove all sideboards:
-```kotlin
 ScoreboardManager.clearAllBoards()
 ```
 
+## Notes
+
+- `line(index, component)` uses `1`-based indexing.
+- Missing intermediate lines are filled automatically.
+- Trailing blank lines are trimmed before refresh.
 ## Contributing
-Issues and pull requests are welcome! Feel free to contribute to the project by submitting bug reports, feature requests, or code contributions.
 
-
-
+Issues and pull requests are welcome.

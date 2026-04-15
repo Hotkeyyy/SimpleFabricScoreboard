@@ -1,12 +1,10 @@
 package de.hotkeyyy.simplefabricscoreboard.scoreboard
 
-import de.hotkeyyy.simplefabricscoreboard.Simplefabricscoreboard
 import net.minecraft.network.chat.Component
 import net.minecraft.network.chat.numbers.BlankFormat
 import net.minecraft.network.protocol.game.ClientboundSetDisplayObjectivePacket
 import net.minecraft.network.protocol.game.ClientboundSetObjectivePacket
 import net.minecraft.network.protocol.game.ClientboundSetScorePacket
-import net.minecraft.network.protocol.game.GamePacketTypes
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.scores.DisplaySlot
@@ -15,10 +13,17 @@ import net.minecraft.world.scores.Scoreboard
 import net.minecraft.world.scores.criteria.ObjectiveCriteria
 import java.util.*
 
-
+/**
+ * A lightweight sidebar scoreboard wrapper backed by direct packet updates.
+ *
+ * Instances keep an ordered list of [Component] lines and send the current state
+ * to players that are associated through [ScoreboardManager].
+ *
+ * @property server the active Minecraft server used to resolve online players
+ */
 class Simplescoreboard(name: String, displayName: Component, val server: MinecraftServer) {
     private val scoreboard = Scoreboard()
-    private val players = listOf<String>()
+    private val players = Collections.synchronizedSet(mutableSetOf<UUID>())
     private val objective = Objective(
         scoreboard,
         name,
@@ -30,41 +35,58 @@ class Simplescoreboard(name: String, displayName: Component, val server: Minecra
     )
     private var lines = listOf<Component>()
 
-
-    init {
+    /**
+     * Appends a new line using lazily constructed content.
+     *
+     * This is equivalent to evaluating [content] immediately and passing the result
+     * to [line].
+     */
+    fun line(content: () -> Component) {
+        line(content.invoke())
     }
 
-    fun setLines(vararg lines: Component) {
-        GamePacketTypes.CLIENTBOUND_SET_OBJECTIVE
-        GamePacketTypes.CLIENTBOUND_SET_OBJECTIVE
-        this.lines = lines.toList()
-    }
+    /**
+     * Appends [content] to the end of the scoreboard.
+     *
+     * The new entry is added after the current last line.
+     */
+    fun line(content: Component) = line(lines.size + 1, content)
 
-    fun updateLine(line: Int, content: Component) {
-        if (line < 1) {
-            Simplefabricscoreboard.logger.warn("Tried to update invalid Line: $line")
-            return
-        }
-
+    /**
+     * Sets or creates the line at the given 1-based [line] index.
+     *
+     * Missing intermediate positions are filled with a blank literal component so the
+     * requested line can exist. If adding the line changes the total number of lines,
+     * all displayed scores are resent to keep their sidebar ordering in sync.
+     *
+     * Invalid values below `1` are ignored.
+     */
+    fun line(line: Int, content: Component) {
+        if (line < 1) return
 
         lines = lines.toMutableList().apply {
             val index = line - 1
-            while ((index) >= this.size) {
-                add(Component.literal(""))
+            while (index >= this.size) {
+                add(Component.literal(" "))
             }
             set(index, content)
         }
-        val index = lines.size - line
-        val packet = createScoreUpdatePacket(index, content)
-        ScoreboardManager.playerBoard.filter { it.value == this }.mapNotNull { (uuid, _) ->
-            server.playerList.getPlayer(UUID.fromString(uuid))
-        }.forEach { player ->
-            player.connection.send(packet)
-        }
+        trimTrailingEmptyLines()
+        refresh()
     }
 
-    private fun sendAddPacketsToPlayer(player: ServerPlayer) {
+    /**
+     * Applies several scoreboard mutations in sequence using this instance as receiver.
+     *
+     * This is mainly a convenience DSL entrypoint for grouped [line] calls.
+     */
+    fun update(block: Simplescoreboard.() -> Unit) {
+        block.invoke(this)
+        trimTrailingEmptyLines()
+        refresh()
+    }
 
+    internal fun refreshPlayer(player: ServerPlayer) {
         player.connection.send(createObjectiveUpdatePacket(ClientboundSetObjectivePacket.METHOD_REMOVE))
         player.connection.send(createObjectiveUpdatePacket(ClientboundSetObjectivePacket.METHOD_ADD))
         player.connection.send(
@@ -79,8 +101,28 @@ class Simplescoreboard(name: String, displayName: Component, val server: Minecra
         }
     }
 
+    fun refresh() {
+        getAffectedPlayers().forEach(::refreshPlayer)
+    }
+
+    private fun getAffectedPlayers(): List<ServerPlayer> {
+        return synchronized(players) {
+            players.mapNotNull(server.playerList::getPlayer)
+        }
+    }
+
+    private fun trimTrailingEmptyLines() {
+        lines = lines
+            .dropLastWhile(::isEmptyLine)
+    }
+
+    private fun isEmptyLine(content: Component): Boolean {
+        return content.string.isBlank()
+    }
+
     internal fun removePlayer(player: ServerPlayer) {
-        ScoreboardManager.playerBoard.remove(player.stringUUID)
+        players.remove(player.uuid)
+        ScoreboardManager.unregisterBoard(player, this)
         player.connection.send(
             ClientboundSetObjectivePacket(
                 objective, ClientboundSetObjectivePacket.METHOD_REMOVE
@@ -90,7 +132,9 @@ class Simplescoreboard(name: String, displayName: Component, val server: Minecra
 
 
     internal fun addPlayer(player: ServerPlayer) {
-        sendAddPacketsToPlayer(player)
+        players.add(player.uuid)
+        ScoreboardManager.registerBoard(player, this)
+        refreshPlayer(player)
     }
 
     internal fun createScoreUpdatePacket(line: Int, content: Component): ClientboundSetScorePacket {
@@ -110,11 +154,34 @@ class Simplescoreboard(name: String, displayName: Component, val server: Minecra
     }
 
     fun removeAllPlayers() {
-        players.forEach { playerUUID ->
-            server.playerList.players.filter { it.stringUUID.equals(playerUUID) }.forEach { serverPlayerEntity ->
-                removePlayer(serverPlayerEntity)
-
-            }
+        val assignedPlayers = synchronized(players) { players.toList() }
+        assignedPlayers.forEach { playerUuid ->
+            server.playerList.getPlayer(playerUuid)?.let(::removePlayer)
         }
     }
+
+    operator fun Component.unaryPlus() {
+        line(this)
+    }
+
+
+}
+
+/**
+ * Creates and configures a [Simplescoreboard] using a small builder-style DSL.
+ *
+ * @param name the internal objective name
+ * @param displayName the title shown in the sidebar
+ * @param server the active Minecraft server
+ * @param block configuration block used to add initial lines
+ */
+fun scoreboard(
+    name: String,
+    displayName: Component,
+    server: MinecraftServer,
+    block: Simplescoreboard.() -> Unit
+): Simplescoreboard {
+    val board = Simplescoreboard(name, displayName, server)
+    block.invoke(board)
+    return board
 }

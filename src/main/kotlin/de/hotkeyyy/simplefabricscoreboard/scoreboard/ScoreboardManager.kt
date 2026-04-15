@@ -1,53 +1,51 @@
 package de.hotkeyyy.simplefabricscoreboard.scoreboard
 
 import de.hotkeyyy.simplefabricscoreboard.Simplefabricscoreboard
-import net.minecraft.network.chat.Component
 import net.minecraft.server.level.ServerPlayer
+import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
 object ScoreboardManager {
-    internal val playerBoard = ConcurrentHashMap<String, Simplescoreboard>()
+    internal val playerBoards = ConcurrentHashMap<UUID, Simplescoreboard>()
 
 
     fun getPlayerScoreboard(player: ServerPlayer): Simplescoreboard? {
-        return playerBoard[player.stringUUID]
+        return playerBoards[player.uuid]
     }
 
     fun removePlayerScoreboard(player: ServerPlayer) {
-        if (!playerBoard.containsKey(player.stringUUID)) {
+        val board = playerBoards[player.uuid]
+        if (board == null) {
             Simplefabricscoreboard.logger.warn("Tried to remove a scoreboard from a player that doesn't have one!")
             return
         }
-        playerBoard[player.stringUUID]?.removePlayer(player)
-        playerBoard.remove(player.stringUUID)
+        board.removePlayer(player)
     }
 
     fun setPlayerScoreboard(player: ServerPlayer, board: Simplescoreboard) {
-        if (playerBoard.contains(player.stringUUID)) {
-            Simplefabricscoreboard.logger.warn("Tried to add a scoreboard to a player that already has one!")
+        val currentBoard = playerBoards[player.uuid]
+        if (currentBoard === board) {
+            board.refreshPlayer(player)
             return
         }
+
+        currentBoard?.removePlayer(player)
         board.addPlayer(player)
-        playerBoard[player.stringUUID] = board
     }
 
-    fun createScoreboard(
-        name: String,
-        displayName: Component,
-        server: net.minecraft.server.MinecraftServer,
-        vararg lines: Component
-    ): Simplescoreboard {
-        val board = Simplescoreboard(name, displayName, server)
-        board.setLines(*lines)
-        return board
+    internal fun registerBoard(player: ServerPlayer, board: Simplescoreboard) {
+        playerBoards[player.uuid] = board
+    }
 
+    internal fun unregisterBoard(player: ServerPlayer, board: Simplescoreboard) {
+        playerBoards.remove(player.uuid, board)
     }
 
     fun clearAllBoards() {
-        playerBoard.forEach { (_, board) ->
+        playerBoards.values.toSet().forEach { board ->
             board.removeAllPlayers()
         }
-        playerBoard.clear()
+        playerBoards.clear()
     }
 
 }
