@@ -35,6 +35,7 @@ Create a scoreboard and assign it to a player:
 val board = scoreboard("test_board", Component.literal("Test Board"), server) {
     +Component.literal("Line 1")
     +Component.literal("Line 2")
+    +emptyLine()
     +Component.literal("Line 3")
 }
 
