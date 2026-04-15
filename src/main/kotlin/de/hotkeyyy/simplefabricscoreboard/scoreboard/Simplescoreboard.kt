@@ -22,6 +22,10 @@ import java.util.*
  * @property server the active Minecraft server used to resolve online players
  */
 class Simplescoreboard(name: String, displayName: Component, val server: MinecraftServer) {
+    companion object {
+        private const val EMPTY_LINE_CHAR = "\u200B"
+    }
+
     private val scoreboard = Scoreboard()
     private val players = Collections.synchronizedSet(mutableSetOf<UUID>())
     private val objective = Objective(
@@ -67,13 +71,16 @@ class Simplescoreboard(name: String, displayName: Component, val server: Minecra
         lines = lines.toMutableList().apply {
             val index = line - 1
             while (index >= this.size) {
-                add(Component.literal(" "))
+                add(emptyLine())
             }
             set(index, content)
         }
-        trimTrailingEmptyLines()
+        if(content.string != EMPTY_LINE_CHAR) trimTrailingEmptyLines()
         refresh()
     }
+
+    fun emptyLine(): Component = Component.literal(EMPTY_LINE_CHAR)
+
 
     /**
      * Applies several scoreboard mutations in sequence using this instance as receiver.
@@ -96,7 +103,7 @@ class Simplescoreboard(name: String, displayName: Component, val server: Minecra
         )
         lines.forEachIndexed { index, text ->
             player.connection.send(
-                createScoreUpdatePacket(lines.size - index, text)
+                createScoreUpdatePacket(lines.size - index, if(text.string == EMPTY_LINE_CHAR) Component.literal(" ") else text)
             )
         }
     }
@@ -116,8 +123,12 @@ class Simplescoreboard(name: String, displayName: Component, val server: Minecra
             .dropLastWhile(::isEmptyLine)
     }
 
+
+
+
     private fun isEmptyLine(content: Component): Boolean {
-        return content.string.isBlank()
+        val value = content.string
+        return value.isBlank() || value == EMPTY_LINE_CHAR
     }
 
     internal fun removePlayer(player: ServerPlayer) {
